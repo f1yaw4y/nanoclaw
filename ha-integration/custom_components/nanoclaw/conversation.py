@@ -21,7 +21,6 @@ async def async_setup_entry(
 class NanoClawAgent(ConversationEntity):
     _attr_has_entity_name = True
     _attr_name = None
-    _attr_supported_languages = MATCH_ALL
 
     def __init__(self, entry: ConfigEntry) -> None:
         self._entry = entry
@@ -33,6 +32,10 @@ class NanoClawAgent(ConversationEntity):
     @property
     def name(self) -> str:
         return "NanoClaw"
+
+    @property
+    def supported_languages(self) -> str:
+        return MATCH_ALL
 
     async def async_process(self, user_input: ConversationInput) -> ConversationResult:
         response = intent.IntentResponse(language=user_input.language)
