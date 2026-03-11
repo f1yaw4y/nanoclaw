@@ -37,6 +37,7 @@ class NanoClawAgent(ConversationEntity):
     def state(self) -> str:
         return "idle"
 
+    @property
     def supported_languages(self) -> str:
         return MATCH_ALL
 
