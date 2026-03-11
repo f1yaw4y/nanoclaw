@@ -34,8 +34,15 @@ class NanoClawAgent(ConversationEntity):
         return "NanoClaw"
 
     @property
+    def state(self) -> str:
+        return "idle"
+
     def supported_languages(self) -> str:
         return MATCH_ALL
+
+    async def async_added_to_hass(self) -> None:
+        await super().async_added_to_hass()
+        self.async_write_ha_state()
 
     async def async_process(self, user_input: ConversationInput) -> ConversationResult:
         response = intent.IntentResponse(language=user_input.language)
