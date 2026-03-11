@@ -52,6 +52,7 @@ import {
   loadSenderAllowlist,
   shouldDropMessage,
 } from './sender-allowlist.js';
+import { startApiServer } from './api.js';
 import { startSchedulerLoop } from './task-scheduler.js';
 import { Channel, NewMessage, RegisteredGroup } from './types.js';
 import { logger } from './logger.js';
@@ -272,7 +273,7 @@ async function processGroupMessages(chatJid: string): Promise<boolean> {
   return true;
 }
 
-async function runAgent(
+export async function runAgent(
   group: RegisteredGroup,
   prompt: string,
   chatJid: string,
@@ -432,7 +433,13 @@ async function startMessageLoop(): Promise<void> {
             .flatMap((m) => m.images ?? [])
             .filter((img) => img.base64 && img.mimeType);
 
-          if (queue.sendMessage(chatJid, formatted, pendingImages.length > 0 ? pendingImages : undefined)) {
+          if (
+            queue.sendMessage(
+              chatJid,
+              formatted,
+              pendingImages.length > 0 ? pendingImages : undefined,
+            )
+          ) {
             logger.debug(
               { chatJid, count: messagesToSend.length },
               'Piped messages to active container',
@@ -595,6 +602,7 @@ async function main(): Promise<void> {
   });
   queue.setProcessMessagesFn(processGroupMessages);
   recoverPendingMessages();
+  startApiServer(runAgent);
   startMessageLoop().catch((err) => {
     logger.fatal({ err }, 'Message loop crashed unexpectedly');
     process.exit(1);

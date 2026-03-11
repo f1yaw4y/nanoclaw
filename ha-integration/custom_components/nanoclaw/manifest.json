@@ -1,0 +1,10 @@
+{
+  "domain": "nanoclaw",
+  "name": "NanoClaw AI Assistant",
+  "version": "1.0.0",
+  "documentation": "https://github.com/qwibitai/nanoclaw",
+  "dependencies": ["conversation"],
+  "codeowners": [],
+  "iot_class": "local_polling",
+  "config_flow": true
+}

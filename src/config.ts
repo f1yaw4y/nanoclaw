@@ -71,3 +71,7 @@ export const TRIGGER_PATTERN = new RegExp(
 // Uses system timezone by default
 export const TIMEZONE =
   process.env.TZ || Intl.DateTimeFormat().resolvedOptions().timeZone;
+
+// Home Assistant HTTP API
+export const HA_API_PORT = parseInt(process.env.HA_API_PORT || '3002', 10);
+export const HA_API_KEY = process.env.HA_API_KEY || '';
