@@ -288,21 +288,26 @@ function shouldClose(): boolean {
  * Drain all pending IPC input messages.
  * Returns messages found, or empty array.
  */
-function drainIpcInput(): string[] {
+interface IpcMessage {
+  text: string;
+  images?: Array<{ base64: string; mimeType: string }>;
+}
+
+function drainIpcInput(): IpcMessage[] {
   try {
     fs.mkdirSync(IPC_INPUT_DIR, { recursive: true });
     const files = fs.readdirSync(IPC_INPUT_DIR)
       .filter(f => f.endsWith('.json'))
       .sort();
 
-    const messages: string[] = [];
+    const messages: IpcMessage[] = [];
     for (const file of files) {
       const filePath = path.join(IPC_INPUT_DIR, file);
       try {
         const data = JSON.parse(fs.readFileSync(filePath, 'utf-8'));
         fs.unlinkSync(filePath);
         if (data.type === 'message' && data.text) {
-          messages.push(data.text);
+          messages.push({ text: data.text, images: data.images });
         }
       } catch (err) {
         log(`Failed to process input file ${file}: ${err instanceof Error ? err.message : String(err)}`);
@@ -320,7 +325,7 @@ function drainIpcInput(): string[] {
  * Wait for a new IPC message or _close sentinel.
  * Returns the messages as a single string, or null if _close.
  */
-function waitForIpcMessage(): Promise<string | null> {
+function waitForIpcMessage(): Promise<IpcMessage | null> {
   return new Promise((resolve) => {
     const poll = () => {
       if (shouldClose()) {
@@ -329,7 +334,13 @@ function waitForIpcMessage(): Promise<string | null> {
       }
       const messages = drainIpcInput();
       if (messages.length > 0) {
-        resolve(messages.join('\n'));
+        // Merge all messages: combine text, merge images
+        const combined: IpcMessage = {
+          text: messages.map(m => m.text).join('\n'),
+          images: messages.flatMap(m => m.images ?? []),
+        };
+        if (combined.images!.length === 0) delete combined.images;
+        resolve(combined);
         return;
       }
       setTimeout(poll, IPC_POLL_MS);
@@ -351,9 +362,10 @@ async function runQuery(
   containerInput: ContainerInput,
   sdkEnv: Record<string, string | undefined>,
   resumeAt?: string,
+  promptImages?: Array<{ base64: string; mimeType: string }>,
 ): Promise<{ newSessionId?: string; lastAssistantUuid?: string; closedDuringQuery: boolean }> {
   const stream = new MessageStream();
-  const images = containerInput.images;
+  const images = promptImages ?? containerInput.images;
   if (images && images.length > 0) {
     const blocks: ContentBlock[] = [
       { type: 'text', text: prompt },
@@ -381,9 +393,21 @@ async function runQuery(
       return;
     }
     const messages = drainIpcInput();
-    for (const text of messages) {
-      log(`Piping IPC message into active query (${text.length} chars)`);
-      stream.push(text);
+    for (const msg of messages) {
+      if (msg.images && msg.images.length > 0) {
+        log(`Piping IPC message into active query (${msg.text.length} chars, ${msg.images.length} image(s))`);
+        const blocks: ContentBlock[] = [
+          { type: 'text', text: msg.text },
+          ...msg.images.map((img) => ({
+            type: 'image' as const,
+            source: { type: 'base64' as const, media_type: img.mimeType, data: img.base64 },
+          })),
+        ];
+        stream.pushMultimodal(blocks);
+      } else {
+        log(`Piping IPC message into active query (${msg.text.length} chars)`);
+        stream.push(msg.text);
+      }
     }
     setTimeout(pollIpcDuringQuery, IPC_POLL_MS);
   };
@@ -527,10 +551,13 @@ async function main(): Promise<void> {
   if (containerInput.isScheduledTask) {
     prompt = `[SCHEDULED TASK - The following message was sent automatically and is not coming directly from the user or group.]\n\n${prompt}`;
   }
+  let promptImages: Array<{ base64: string; mimeType: string }> | undefined;
   const pending = drainIpcInput();
   if (pending.length > 0) {
     log(`Draining ${pending.length} pending IPC messages into initial prompt`);
-    prompt += '\n' + pending.join('\n');
+    prompt += '\n' + pending.map(m => m.text).join('\n');
+    const pendingImgs = pending.flatMap(m => m.images ?? []);
+    if (pendingImgs.length > 0) promptImages = pendingImgs;
   }
 
   // Query loop: run query → wait for IPC message → run new query → repeat
@@ -539,7 +566,8 @@ async function main(): Promise<void> {
     while (true) {
       log(`Starting query (session: ${sessionId || 'new'}, resumeAt: ${resumeAt || 'latest'})...`);
 
-      const queryResult = await runQuery(prompt, sessionId, mcpServerPath, containerInput, sdkEnv, resumeAt);
+      const queryResult = await runQuery(prompt, sessionId, mcpServerPath, containerInput, sdkEnv, resumeAt, promptImages);
+      promptImages = undefined; // Only use for first query
       if (queryResult.newSessionId) {
         sessionId = queryResult.newSessionId;
       }
@@ -567,8 +595,9 @@ async function main(): Promise<void> {
         break;
       }
 
-      log(`Got new message (${nextMessage.length} chars), starting new query`);
-      prompt = nextMessage;
+      log(`Got new message (${nextMessage.text.length} chars${nextMessage.images?.length ? `, ${nextMessage.images.length} image(s)` : ''}), starting new query`);
+      prompt = nextMessage.text;
+      promptImages = nextMessage.images?.length ? nextMessage.images : undefined;
     }
   } catch (err) {
     const errorMessage = err instanceof Error ? err.message : String(err);
