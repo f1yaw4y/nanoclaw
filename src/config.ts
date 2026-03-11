@@ -6,7 +6,12 @@ import { readEnvFile } from './env.js';
 // Read config values from .env (falls back to process.env).
 // Secrets (API keys, tokens) are NOT read here — they are loaded only
 // by the credential proxy (credential-proxy.ts), never exposed to containers.
-const envConfig = readEnvFile(['ASSISTANT_NAME', 'ASSISTANT_HAS_OWN_NUMBER']);
+const envConfig = readEnvFile([
+  'ASSISTANT_NAME',
+  'ASSISTANT_HAS_OWN_NUMBER',
+  'HA_API_KEY',
+  'HA_API_PORT',
+]);
 
 export const ASSISTANT_NAME =
   process.env.ASSISTANT_NAME || envConfig.ASSISTANT_NAME || 'Andy';
@@ -73,5 +78,8 @@ export const TIMEZONE =
   process.env.TZ || Intl.DateTimeFormat().resolvedOptions().timeZone;
 
 // Home Assistant HTTP API
-export const HA_API_PORT = parseInt(process.env.HA_API_PORT || '3002', 10);
-export const HA_API_KEY = process.env.HA_API_KEY || '';
+export const HA_API_PORT = parseInt(
+  process.env.HA_API_PORT || envConfig.HA_API_PORT || '3002',
+  10,
+);
+export const HA_API_KEY = process.env.HA_API_KEY || envConfig.HA_API_KEY || '';
