@@ -8,8 +8,7 @@ import { logger } from './logger.js';
 import { RegisteredGroup } from './types.js';
 
 const HA_JID = 'ha:voice';
-// Share folder with Telegram so HA voice and Telegram share the same memory
-const HA_FOLDER = 'telegram_main';
+const HA_FOLDER = 'ha_voice';
 
 export const HA_GROUP: RegisteredGroup = {
   name: 'Home Assistant Voice',
