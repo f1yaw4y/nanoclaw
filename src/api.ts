@@ -67,21 +67,48 @@ export function startApiServer(runAgentFn: RunAgentFn): void {
 
         logger.info({ text: text.slice(0, 100) }, 'HA voice request');
 
+        // Resolve HTTP as soon as agent produces a success/error result —
+        // don't wait for the container to exit (it stays alive for idle timeout).
         const responses: string[] = [];
-        await runAgentFn(HA_GROUP, text, HA_JID, undefined, async (output: ContainerOutput) => {
-          if (output.result) {
-            const raw =
-              typeof output.result === 'string'
-                ? output.result
-                : JSON.stringify(output.result);
-            const clean = raw
-              .replace(/<internal>[\s\S]*?<\/internal>/g, '')
-              .trim();
-            if (clean) responses.push(clean);
-          }
+        let resolveHttp!: (text: string) => void;
+        const httpPromise = new Promise<string>((r) => {
+          resolveHttp = r;
         });
 
-        const responseText = responses.join('\n\n') || 'No response.';
+        // Run agent without awaiting — resolve HTTP on first final status
+        void runAgentFn(
+          HA_GROUP,
+          text,
+          HA_JID,
+          undefined,
+          async (output: ContainerOutput) => {
+            if (output.result) {
+              const raw =
+                typeof output.result === 'string'
+                  ? output.result
+                  : JSON.stringify(output.result);
+              const clean = raw
+                .replace(/<internal>[\s\S]*?<\/internal>/g, '')
+                .trim();
+              if (clean) responses.push(clean);
+            }
+            if (output.status === 'success' || output.status === 'error') {
+              resolveHttp(responses.join('\n\n') || 'No response.');
+            }
+          },
+        ).catch((err) => {
+          logger.error({ err }, 'HA agent error');
+          resolveHttp('Sorry, an error occurred.');
+        });
+
+        // 90s timeout in case agent never sends a final status
+        const responseText = await Promise.race([
+          httpPromise,
+          new Promise<string>((r) =>
+            setTimeout(() => r('Request timed out.'), 90000),
+          ),
+        ]);
+
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ response: responseText }));
       } catch (err) {
