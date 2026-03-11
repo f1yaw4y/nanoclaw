@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import aiohttp
-from homeassistant.components.conversation import ConversationEntity, ConversationInput, ConversationResult
+from homeassistant.components.conversation import ConversationEntity, ConversationInput, ConversationResult, MATCH_ALL
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import intent
@@ -15,12 +15,13 @@ async def async_setup_entry(
     entry: ConfigEntry,
     async_add_entities: AddEntitiesCallback,
 ) -> None:
-    async_add_entities([NanoClawAgent(entry)])
+    async_add_entities([NanoClawAgent(entry)], True)
 
 
 class NanoClawAgent(ConversationEntity):
     _attr_has_entity_name = True
     _attr_name = None
+    _attr_supported_languages = MATCH_ALL
 
     def __init__(self, entry: ConfigEntry) -> None:
         self._entry = entry
@@ -32,10 +33,6 @@ class NanoClawAgent(ConversationEntity):
     @property
     def name(self) -> str:
         return "NanoClaw"
-
-    @property
-    def supported_languages(self) -> list[str]:
-        return ["*"]
 
     async def async_process(self, user_input: ConversationInput) -> ConversationResult:
         response = intent.IntentResponse(language=user_input.language)
