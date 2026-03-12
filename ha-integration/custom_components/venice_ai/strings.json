@@ -1,0 +1,30 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Venice AI",
+        "description": "Enter your Venice AI API key and model settings.",
+        "data": {
+          "api_key": "API Key",
+          "model": "Model ID",
+          "system_prompt": "System Prompt"
+        }
+      }
+    },
+    "error": {},
+    "abort": {
+      "already_configured": "Venice AI is already configured."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Venice AI Options",
+        "data": {
+          "model": "Model ID",
+          "system_prompt": "System Prompt"
+        }
+      }
+    }
+  }
+}

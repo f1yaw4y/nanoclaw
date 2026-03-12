@@ -1,0 +1,10 @@
+{
+  "domain": "venice_ai",
+  "name": "Venice AI",
+  "version": "1.0.0",
+  "documentation": "https://venice.ai",
+  "dependencies": ["conversation"],
+  "codeowners": [],
+  "iot_class": "cloud_polling",
+  "config_flow": true
+}
